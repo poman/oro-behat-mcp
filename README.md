@@ -16,91 +16,14 @@ Minimal MCP server for running Behat tests inside the Oro monolith.
 
 ## Installation
 
-From `oro-behat-mcp` directory:
+From `oro-behat-mcp` directory (installs local dependencies only):
 
 ```bash
 npm install
 cp .env.example .env
-npm install -g --prefix "$HOME/.local" .
 ```
 
-### Troubleshooting local install
-
-If `npm install -g --prefix "$HOME/.local" .` fails or command is not found:
-
-1) `EACCES` / permission denied
-
-- Use user prefix exactly as above (`$HOME/.local`), not system global prefix.
-- Verify current npm prefix:
-
-```bash
-npm config get prefix
-```
-
-2) `oro-behat-mcp: command not found`
-
-- Ensure `$HOME/.local/bin` is in `PATH`:
-
-```bash
-echo "$PATH"
-```
-
-- If missing, add to `~/.bashrc`:
-
-```bash
-export PATH="$HOME/.local/bin:$PATH"
-```
-
-- Reload shell:
-
-```bash
-source ~/.bashrc
-```
-
-3) Installed but old version still runs
-
-- Reinstall from package directory:
-
-```bash
-cd /oro-behat-mcp
-npm install -g --prefix "$HOME/.local" .
-```
-
-- Verify resolved binary:
-
-```bash
-command -v oro-behat-mcp
-```
-
-4) Wrong Node/npm in current shell
-
-- Check versions and location:
-
-```bash
-node -v
-npm -v
-which node
-which npm
-```
-
-5) After `git pull` the guard or tool behavior does not change (still runs full suite)
-
-- Cursor runs the **globally installed** `oro-behat-mcp` binary, not the repo copy. Reinstall and restart MCP:
-
-```bash
-cd <monolith-root>/oro-behat-mcp
-npm install -g --prefix "$HOME/.local" .
-```
-
-- Then restart the `behat-runner` MCP server in Cursor (or reload the window).
-
-- Sanity check without starting Behat (empty args must be rejected):
-
-```bash
-printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"run-tests","arguments":{}}}' | node src/server.js
-```
-
-You should see `Refusing to run full suite` in the JSON response.
+No global `npm install -g` is required. The MCP client runs the server with **`node` and the path to `src/server.js`** (see below).
 
 ## Configuration
 
@@ -115,31 +38,55 @@ Configuration is loaded from `.env` (in `oro-behat-mcp`) with optional fallback 
 | `BEHAT_TIMEOUT` | `600000` | Timeout in ms |
 | `MCP_DEBUG` | unset | Set to `1` to log command output to **stderr** only (never stdout) |
 
-## MCP usage (Cursor/Copilot)
+## MCP usage (Cursor / Copilot)
 
-Use command-only configuration after local install:
+Point the MCP server at **Node** and the **entry file** (absolute path recommended):
 
 ```json
 "behat-runner": {
-  "command": "oro-behat-mcp"
+  "command": "node",
+  "args": ["/absolute/path/to/monolith/oro-behat-mcp/src/server.js"]
 }
 ```
 
-Optional smoke check (manual run):
+If your IDE does not resolve `node` from PATH, use the full path to the Node binary (for example from nvm):
 
-```bash
-oro-behat-mcp
+```json
+"behat-runner": {
+  "command": "/home/you/.nvm/versions/node/v24.12.0/bin/node",
+  "args": ["/absolute/path/to/monolith/oro-behat-mcp/src/server.js"]
+}
 ```
 
-The server uses stdio JSON-RPC and supports tools:
+Use a **single JSON-RPC line per message** on stdin; do not print anything else to stdout from this process (the server follows that rule).
 
-- `run-tests` - runs Behat with provided arguments
-- `debug-failures` - runs Behat and returns failed scenarios
-- Safety guard: full suite run is blocked if `feature`, `tags`, and `name` are all missing or only whitespace (after reinstalling the global binary)
+### After `git pull`
+
+Restart the `behat-runner` MCP server in the IDE so it loads the updated `server.js`.
+
+Sanity check (empty tool args must be rejected, no Behat run):
+
+```bash
+cd /path/to/monolith/oro-behat-mcp
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"run-tests","arguments":{}}}' | node src/server.js
+```
+
+You should see `Refusing to run full suite` inside the JSON response.
+
+### Troubleshooting
+
+- **`node` not found in MCP** — use the full path to `node` in `command` (same as in your shell `which node`).
+- **Wrong old behavior after code changes** — ensure `args` points at the repo copy of `src/server.js` you just updated, then restart MCP.
+
+## Tools
+
+- `run-tests` — runs Behat with provided arguments
+- `debug-failures` — runs Behat and returns failed scenarios
+- Safety guard: full suite run is blocked if `feature`, `tags`, and `name` are all missing or only whitespace
 - Feature path accepts monolith-root-relative value (example: `package/.../file.feature`)
 - **Stdio rule:** MCP must not print anything to **stdout** except JSON-RPC lines. Debug logging goes to stderr when `MCP_DEBUG=1`.
 - **Test failures:** Behat often exits with a non-zero code when scenarios fail, but the server still reads `behat.json` and returns `success: true` with `data`, plus `behatExitCode` and `testsFailed` so agents get structured results.
-- **Isolation / MailCatcher / kernel log:** Behat prints most of that to **stdout**. The `run-tests` response includes `behatStdout` (and `stderr` when present) so agents can see warnings before or after scenarios (for example MailCatcher not running). The `debug-failures` tool includes the same fields next to `failures`.
+- **Isolation / MailCatcher / kernel log:** Behat prints most of that to **stdout**. The `run-tests` response includes `behatStdout` (and `stderr` when present). The `debug-failures` tool includes the same fields next to `failures`.
 
 ## Example `.env`
 

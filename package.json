@@ -3,12 +3,6 @@
   "version": "1.0.0",
   "description": "Minimal MCP server for running Oro Behat suites",
   "type": "module",
-  "bin": {
-    "oro-behat-mcp": "./src/server.js"
-  },
-  "scripts": {
-    "start": "node src/server.js"
-  },
   "author": "Roman Kukla",
   "license": "MIT",
   "dependencies": {
