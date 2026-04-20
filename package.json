@@ -1,0 +1,7 @@
+{
+  "name": "oro-behat-mcp",
+  "version": "1.0.0",
+  "type": "module",
+  "author": "Roman Kukla",
+  "license": "MIT"
+}
