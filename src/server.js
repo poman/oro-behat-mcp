@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import readline from "readline";
-import { runBehat, extractFailures } from "./behatRunner.js";
+import { runBehat, extractFailures, hasRunnableSelection, normalizeToolArgs } from "./behatRunner.js";
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -10,6 +10,17 @@ const rl = readline.createInterface({
 
 function send(response) {
   process.stdout.write(JSON.stringify(response) + "\n");
+}
+
+function asToolResponse(payload) {
+  const text = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
+  const isError = Boolean(payload && typeof payload === "object" && payload.success === false);
+
+  return {
+    content: [{ type: "text", text }],
+    structuredContent: payload,
+    isError
+  };
 }
 
 rl.on("line", async (line) => {
@@ -46,9 +57,15 @@ rl.on("line", async (line) => {
               inputSchema: {
                 type: "object",
                 properties: {
-                  feature: { type: "string" }
+                  feature: { type: "string" },
+                  tags: { type: "string" },
+                  name: { type: "string" }
                 },
-                required: ["feature"]
+                anyOf: [
+                  { required: ["feature"] },
+                  { required: ["tags"] },
+                  { required: ["name"] }
+                ]
               }
             },
             {
@@ -57,9 +74,15 @@ rl.on("line", async (line) => {
               inputSchema: {
                 type: "object",
                 properties: {
-                  feature: { type: "string" }
+                  feature: { type: "string" },
+                  tags: { type: "string" },
+                  name: { type: "string" }
                 },
-                required: ["feature"]
+                anyOf: [
+                  { required: ["feature"] },
+                  { required: ["tags"] },
+                  { required: ["name"] }
+                ]
               }
             }
           ]
@@ -69,26 +92,45 @@ rl.on("line", async (line) => {
     }
 
     if (request.method === "tools/call") {
-      const { name, arguments: args } = request.params;
+      const toolName = request.params?.name;
+      const rawArgs = request.params?.arguments;
 
       let result;
 
-      if (name === "run-tests") {
-        result = await runBehat(args);
-      }
+      if (toolName === "run-tests" || toolName === "debug-failures") {
+        const merged = normalizeToolArgs(rawArgs);
+        if (!hasRunnableSelection(merged)) {
+          result = {
+            success: false,
+            error: "Refusing to run full suite. Provide a non-empty value for at least one of: feature, tags, name."
+          };
+        } else if (toolName === "run-tests") {
+          result = await runBehat(rawArgs);
+        } else {
+          const r = await runBehat(rawArgs);
 
-      if (name === "debug-failures") {
-        const r = await runBehat(args);
-
-        result = r.success
-          ? { success: true, failures: extractFailures(r.data) }
-          : r;
+          result = r.success
+            ? {
+              success: true,
+              failures: extractFailures(r.data),
+              behatExitCode: r.behatExitCode,
+              testsFailed: r.testsFailed,
+              behatStdout: r.behatStdout,
+              stderr: r.stderr,
+            }
+            : r;
+        }
+      } else {
+        result = {
+          success: false,
+          error: `Unknown tool: ${String(toolName)}`
+        };
       }
 
       send({
         jsonrpc: "2.0",
         id: request.id,
-        result
+        result: asToolResponse(result)
       });
 
       return;

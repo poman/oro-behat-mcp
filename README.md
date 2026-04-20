@@ -83,6 +83,25 @@ which node
 which npm
 ```
 
+5) After `git pull` the guard or tool behavior does not change (still runs full suite)
+
+- Cursor runs the **globally installed** `oro-behat-mcp` binary, not the repo copy. Reinstall and restart MCP:
+
+```bash
+cd <monolith-root>/oro-behat-mcp
+npm install -g --prefix "$HOME/.local" .
+```
+
+- Then restart the `behat-runner` MCP server in Cursor (or reload the window).
+
+- Sanity check without starting Behat (empty args must be rejected):
+
+```bash
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"run-tests","arguments":{}}}' | node src/server.js
+```
+
+You should see `Refusing to run full suite` in the JSON response.
+
 ## Configuration
 
 Configuration is loaded from `.env` (in `oro-behat-mcp`) with optional fallback to monolith root `.env`.
@@ -94,6 +113,7 @@ Configuration is loaded from `.env` (in `oro-behat-mcp`) with optional fallback 
 | `BEHAT_FORMAT` | `json` | Output format |
 | `BEHAT_OUTPUT_FILE` | `behat.json` | Output file name |
 | `BEHAT_TIMEOUT` | `600000` | Timeout in ms |
+| `MCP_DEBUG` | unset | Set to `1` to log command output to **stderr** only (never stdout) |
 
 ## MCP usage (Cursor/Copilot)
 
@@ -115,6 +135,11 @@ The server uses stdio JSON-RPC and supports tools:
 
 - `run-tests` - runs Behat with provided arguments
 - `debug-failures` - runs Behat and returns failed scenarios
+- Safety guard: full suite run is blocked if `feature`, `tags`, and `name` are all missing or only whitespace (after reinstalling the global binary)
+- Feature path accepts monolith-root-relative value (example: `package/.../file.feature`)
+- **Stdio rule:** MCP must not print anything to **stdout** except JSON-RPC lines. Debug logging goes to stderr when `MCP_DEBUG=1`.
+- **Test failures:** Behat often exits with a non-zero code when scenarios fail, but the server still reads `behat.json` and returns `success: true` with `data`, plus `behatExitCode` and `testsFailed` so agents get structured results.
+- **Isolation / MailCatcher / kernel log:** Behat prints most of that to **stdout**. The `run-tests` response includes `behatStdout` (and `stderr` when present) so agents can see warnings before or after scenarios (for example MailCatcher not running). The `debug-failures` tool includes the same fields next to `failures`.
 
 ## Example `.env`
 

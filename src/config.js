@@ -6,8 +6,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 
-dotenv.config({ path: path.join(PROJECT_ROOT, ".env") });
-dotenv.config({ path: path.join(PROJECT_ROOT, "..", ".env"), override: false });
+dotenv.config({ path: path.join(PROJECT_ROOT, ".env"), quiet: true });
+dotenv.config({ path: path.join(PROJECT_ROOT, "..", ".env"), override: false, quiet: true });
 
 export const CONFIG = {
   ORO_PATH: path.resolve(
