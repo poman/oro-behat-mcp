@@ -34,7 +34,7 @@ Configuration is loaded from `.env` (in `oro-behat-mcp`) with optional fallback 
 | `ORO_PATH` | `../application/commerce-crm-ee` | Path to Oro application, relative to `oro-behat-mcp` |
 | `BEHAT_BIN` | `bin/behat` | Behat executable |
 | `BEHAT_FORMAT` | `json` | Output format |
-| `BEHAT_OUTPUT_FILE` | `behat.json` | Output file name |
+| `BEHAT_OUTPUT_FILE` | `behat-execution-result.json` | Output file name |
 | `BEHAT_TIMEOUT` | `600000` | Timeout in ms |
 | `MCP_DEBUG` | unset | Set to `1` to log command output to **stderr** only (never stdout) |
 
@@ -85,7 +85,7 @@ You should see `Refusing to run full suite` inside the JSON response.
 - Safety guard: full suite run is blocked if `feature`, `tags`, and `name` are all missing or only whitespace
 - Feature path accepts monolith-root-relative value (example: `package/.../file.feature`)
 - **Stdio rule:** MCP must not print anything to **stdout** except JSON-RPC lines. Debug logging goes to stderr when `MCP_DEBUG=1`.
-- **Test failures:** Behat often exits with a non-zero code when scenarios fail, but the server still reads `behat.json` and returns `success: true` with `data`, plus `behatExitCode` and `testsFailed` so agents get structured results.
+- **Test failures:** Behat often exits with a non-zero code when scenarios fail, but the server still reads `behat-execution-result.json` and returns `success: true` with `data`, plus `behatExitCode` and `testsFailed` so agents get structured results.
 - **Isolation / MailCatcher / kernel log:** Behat prints most of that to **stdout**. The `run-tests` response includes `behatStdout` (and `stderr` when present). The `debug-failures` tool includes the same fields next to `failures`.
 
 ## Example `.env`

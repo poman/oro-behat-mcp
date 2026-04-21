@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 import readline from "readline";
-import { runBehat, extractFailures, hasRunnableSelection, normalizeToolArgs } from "./behatRunner.js";
+import {
+  runBehat,
+  extractFailures,
+  hasRunnableSelection,
+  normalizeToolArgs
+} from "./behatRunner.js";
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -13,8 +18,13 @@ function send(response) {
 }
 
 function asToolResponse(payload) {
-  const text = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
-  const isError = Boolean(payload && typeof payload === "object" && payload.success === false);
+  const text =
+    typeof payload === "string"
+      ? payload
+      : JSON.stringify(payload, null, 2);
+
+  const isError =
+    Boolean(payload && typeof payload === "object" && payload.success === false);
 
   return {
     content: [{ type: "text", text }],
@@ -27,24 +37,31 @@ rl.on("line", async (line) => {
   try {
     const request = JSON.parse(line);
 
+    // ---------------- INIT ----------------
     if (request.method === "initialize") {
       send({
         jsonrpc: "2.0",
         id: request.id,
         result: {
-          protocolVersion: "2025-11-25",
+          protocolVersion: "2024-11-05",
           capabilities: {
             tools: {}
           },
           serverInfo: {
             name: "oro-behat-mcp",
-            version: "1.0.0"
+            version: "1.0.1"
           }
         }
       });
       return;
     }
 
+    // ---------------- NOTIFICATIONS (fire-and-forget, no response needed) ----------------
+    if (request.method?.startsWith("notifications/")) {
+      return;
+    }
+
+    // ---------------- TOOLS LIST ----------------
     if (request.method === "tools/list") {
       send({
         jsonrpc: "2.0",
@@ -57,15 +74,20 @@ rl.on("line", async (line) => {
               inputSchema: {
                 type: "object",
                 properties: {
-                  feature: { type: "string" },
-                  tags: { type: "string" },
-                  name: { type: "string" }
+                  feature: {
+                    type: "string",
+                    description: "Path to feature file"
+                  },
+                  tags: {
+                    type: "string",
+                    description: "Behat tags (e.g. @smoke)"
+                  },
+                  name: {
+                    type: "string",
+                    description: "Scenario name"
+                  }
                 },
-                anyOf: [
-                  { required: ["feature"] },
-                  { required: ["tags"] },
-                  { required: ["name"] }
-                ]
+                additionalProperties: false
               }
             },
             {
@@ -74,15 +96,20 @@ rl.on("line", async (line) => {
               inputSchema: {
                 type: "object",
                 properties: {
-                  feature: { type: "string" },
-                  tags: { type: "string" },
-                  name: { type: "string" }
+                  feature: {
+                    type: "string",
+                    description: "Path to feature file"
+                  },
+                  tags: {
+                    type: "string",
+                    description: "Behat tags"
+                  },
+                  name: {
+                    type: "string",
+                    description: "Scenario name"
+                  }
                 },
-                anyOf: [
-                  { required: ["feature"] },
-                  { required: ["tags"] },
-                  { required: ["name"] }
-                ]
+                additionalProperties: false
               }
             }
           ]
@@ -91,23 +118,26 @@ rl.on("line", async (line) => {
       return;
     }
 
+    // ---------------- TOOLS CALL ----------------
     if (request.method === "tools/call") {
       const toolName = request.params?.name;
-      const rawArgs = request.params?.arguments;
+      const rawArgs = request.params?.arguments ?? {};
+      const args = normalizeToolArgs(rawArgs);
 
       let result;
 
       if (toolName === "run-tests" || toolName === "debug-failures") {
-        const merged = normalizeToolArgs(rawArgs);
-        if (!hasRunnableSelection(merged)) {
+        // runtime validation (replacement for anyOf)
+        if (!hasRunnableSelection(args)) {
           result = {
             success: false,
-            error: "Refusing to run full suite. Provide a non-empty value for at least one of: feature, tags, name."
+            error:
+              "Provide at least one of: feature, tags, name (empty run is blocked)"
           };
         } else if (toolName === "run-tests") {
-          result = await runBehat(rawArgs);
+          result = await runBehat(args);
         } else {
-          const r = await runBehat(rawArgs);
+          const r = await runBehat(args);
 
           result = r.success
             ? {
@@ -139,7 +169,9 @@ rl.on("line", async (line) => {
   } catch (e) {
     send({
       jsonrpc: "2.0",
-      error: { message: e.message }
+      error: {
+        message: e.message,
+      }
     });
   }
 });
